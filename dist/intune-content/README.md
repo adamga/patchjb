@@ -2,10 +2,6 @@
 
 This folder contains a small PowerShell-based deployment set for enforcing GitHub Copilot XML settings across JetBrains IDE profiles.
 
-Customer handoff note:
-
-If you are delivering this solution as documentation instead of shipping the script files directly, all operational scripts in this README are reproduced in `document.md`. The customer can recreate the files from that document.
-
 Files
 
 1. `patch-github-copilot.ps1`
@@ -18,8 +14,6 @@ Files
    Intune remediation wrapper. Runs compliance first, exits immediately if already compliant, otherwise runs the patcher and rechecks compliance before returning.
 5. `package-intune-content.ps1`
    Packaging helper. Stages the four deployment PowerShell files into a clean Intune content folder and writes a simple manifest.
-
-For documentation-only delivery, see `document.md` for the full source of each script.
 
 ## Intune Assignment Model
 

@@ -1,0 +1,8 @@
+Created: 2026-04-01 12:52:04-04:00
+Source: C:\repos\ghdemoreponov18\patchjetbrains
+Files:
+- patch-github-copilot.ps1
+- test-github-copilot-compliance.ps1
+- intune-detect-github-copilot.ps1
+- intune-remediate-github-copilot.ps1
+- README.md
