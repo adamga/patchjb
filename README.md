@@ -2,6 +2,12 @@
 
 This folder contains a small PowerShell-based deployment set for enforcing GitHub Copilot XML settings across JetBrains IDE profiles.
 
+Important:
+
+Review [disclaimer.md](c:\repos\patchjb\disclaimer.md) before using or redistributing these scripts. They are provided as-is, without warranty, and should be validated in a non-production environment before rollout.
+
+This repository is licensed under the MIT license. See [LICENSE](c:\repos\patchjb\LICENSE).
+
 Customer handoff note:
 
 If you are delivering this solution as documentation instead of shipping the script files directly, all operational scripts in this README are reproduced in `document.md`. The customer can recreate the files from that document.
