@@ -1,12 +1,33 @@
 [CmdletBinding()]
 param(
-    [string]$PatcherPath = (Join-Path $PSScriptRoot 'patch-github-copilot.ps1'),
-    [string]$CompliancePath = (Join-Path $PSScriptRoot 'test-github-copilot-compliance.ps1'),
-    [string]$HarnessRoot = (Join-Path $PSScriptRoot 'local-test\harness')
+    [string]$PatcherPath,
+    [string]$CompliancePath,
+    [string]$HarnessRoot
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if (-not $PatcherPath) {
+    $PatcherPath = Join-Path $PSScriptRoot 'patch-github-copilot.ps1'
+}
+
+if (-not $CompliancePath) {
+    $CompliancePath = Join-Path $PSScriptRoot 'test-github-copilot-compliance.ps1'
+}
+
+if (-not $HarnessRoot) {
+    $HarnessRoot = Join-Path $PSScriptRoot 'local-test\harness'
+}
+
+function Get-WindowsPowerShellPath {
+    $candidatePath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    if (Test-Path -LiteralPath $candidatePath -PathType Leaf) {
+        return $candidatePath
+    }
+
+    throw 'Windows PowerShell 5.1 executable not found at the standard system path.'
+}
 
 function Assert-Condition {
     param(
@@ -74,7 +95,9 @@ Set-Content -LiteralPath $backupFile -Value @'
 
 Set-Content -LiteralPath $malformedFile -Value '<application><component name="github-copilot"></application>'
 
-$patcherOutput = & pwsh -NoProfile -File $PatcherPath -RootPath $HarnessRoot -TargetFileName 'github2.copilot.xml' -CreateIfMissing -Backup -SetReadOnly 2>&1 | Out-String
+$windowsPowerShellPath = Get-WindowsPowerShellPath
+
+$patcherOutput = & $windowsPowerShellPath -NoProfile -ExecutionPolicy Bypass -File $PatcherPath -RootPath $HarnessRoot -TargetFileName 'github2.copilot.xml' -CreateIfMissing -Backup -SetReadOnly 2>&1 | Out-String
 $patcherExitCode = $LASTEXITCODE
 
 $createdFile = Join-Path $HarnessRoot 'PyCharm2025.1\options\github2.copilot.xml'
@@ -99,11 +122,12 @@ Assert-Condition (-not (Test-Path -LiteralPath (Join-Path $HarnessRoot 'Rider202
 $backupMatches = @(Get-ChildItem -LiteralPath (Split-Path -Parent $backupFile) -Filter 'github2.copilot.xml.*.bak')
 Assert-Condition ($backupMatches.Count -ge 1) 'Backup file was not created for the backup test case.'
 
-$complianceOutput = & pwsh -NoProfile -File $CompliancePath -RootPath $HarnessRoot -TargetFileName 'github2.copilot.xml' 2>&1 | Out-String
+$complianceOutput = & $windowsPowerShellPath -NoProfile -ExecutionPolicy Bypass -File $CompliancePath -RootPath $HarnessRoot -TargetFileName 'github2.copilot.xml' 2>&1 | Out-String
 $complianceExitCode = $LASTEXITCODE
 Assert-Condition ($complianceExitCode -eq 1) 'Compliance script should report non-compliance because the malformed file remains.'
 
 [pscustomobject]@{
+    PowerShellHost      = $windowsPowerShellPath
     HarnessRoot         = $HarnessRoot
     PatcherExitCode     = $patcherExitCode
     ComplianceExitCode  = $complianceExitCode

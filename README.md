@@ -1,6 +1,6 @@
 # JetBrains GitHub Copilot Intune Deployment
 
-This folder contains a small PowerShell-based deployment set for enforcing GitHub Copilot XML settings across JetBrains IDE profiles.
+This folder contains a small Windows PowerShell 5.1-based deployment set for enforcing GitHub Copilot XML settings across JetBrains IDE profiles on Windows machines.
 
 Important:
 
@@ -23,7 +23,7 @@ Files
 4. `intune-remediate-github-copilot.ps1`
    Intune remediation wrapper. Runs compliance first, exits immediately if already compliant, otherwise runs the patcher and rechecks compliance before returning.
 5. `package-intune-content.ps1`
-   Packaging helper. Stages the four deployment PowerShell files into a clean Intune content folder and writes a simple manifest.
+   Packaging helper. Stages the four deployment PowerShell files into a clean Intune content folder, copies the README/license/disclaimer when requested, and writes a simple manifest.
 
 For documentation-only delivery, see `document.md` for the full source of each script.
 
@@ -61,6 +61,19 @@ Recommended Intune execution settings:
 1. Run this script using the logged-on credentials: `Yes`
 2. Enforce script signature check: `No`, unless you separately sign and trust these scripts
 3. Run script in 64-bit PowerShell: `Yes`
+4. Windows PowerShell version baseline: `5.1`
+
+## PowerShell Version Baseline
+
+This solution is written for Windows PowerShell 5.1 on Windows.
+
+Operational assumptions:
+
+1. The default root path resolves from `%APPDATA%\JetBrains`.
+2. The customer runs detection and remediation on Windows endpoints only.
+3. The local validation harness invokes `powershell.exe` explicitly so testing matches the customer runtime.
+
+If you later need a PowerShell 7 or cross-platform variant, treat that as a separate delivery and revalidate the scripts and documentation before use.
 
 ## Recommended Production Parameters
 
@@ -94,6 +107,12 @@ Optional production parameter:
 ```
 
 Use this only if you prefer retry-later behavior over patching while the IDE is open. If enabled, the patcher exits with code `2` when JetBrains appears to be running, and the remediation wrapper will treat that as a deferred remediation rather than success.
+
+Recommended command style for operator testing:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\patch-github-copilot.ps1 -RootPath "$env:APPDATA\JetBrains" -TargetFileName github2.copilot.xml -CreateIfMissing -Backup -Verbose
+```
 
 ## Recommended Intune Script Bodies
 
@@ -194,7 +213,7 @@ Optional packaging behavior:
 1. `-Clean`
    Deletes the existing output folder before staging the new package.
 2. `-IncludeReadme`
-   Copies this README into the staged output folder.
+   Copies this README, the MIT license, and the disclaimer into the staged output folder.
 
 The packager also writes `package-manifest.txt` into the staged folder so you can confirm what was included.
 
@@ -209,7 +228,9 @@ dist\intune-content\
   patch-github-copilot.ps1
   test-github-copilot-compliance.ps1
   package-manifest.txt
-  README.md              # only when -IncludeReadme is used
+   README.md              # only when -IncludeReadme is used
+   LICENSE                # only when -IncludeReadme is used
+   disclaimer.md          # only when -IncludeReadme is used
 ```
 
 ## Local Validation Before Production
@@ -217,8 +238,8 @@ dist\intune-content\
 Use the local test target first:
 
 ```powershell
-.\intune-detect-github-copilot.ps1 -RootPath .\local-test\intune -TargetFileName github2.copilot.xml
-.\intune-remediate-github-copilot.ps1 -RootPath .\local-test\intune -TargetFileName github2.copilot.xml -CreateIfMissing -Backup -SetReadOnly
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\intune-detect-github-copilot.ps1 -RootPath .\local-test\intune -TargetFileName github2.copilot.xml
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\intune-remediate-github-copilot.ps1 -RootPath .\local-test\intune -TargetFileName github2.copilot.xml -CreateIfMissing -Backup -SetReadOnly
 ```
 
 This lets you verify wrapper flow without touching a real `github-copilot.xml` under `%APPDATA%`.

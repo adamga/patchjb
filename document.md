@@ -2,7 +2,7 @@
 
 ## Preface
 
-This document is the customer-facing handoff copy of the solution. It is intended for environments where the source files themselves are not being delivered directly.
+This document is the customer-facing handoff copy of the solution. It is intended for Windows environments where the source files themselves are not being delivered directly.
 
 Use this document as the canonical reconstruction guide.
 
@@ -17,6 +17,8 @@ This document does not reproduce the README. It reproduces the operational scrip
 ## Chapter 1: Solution Overview
 
 The solution is composed of five operational scripts and one local validation harness.
+
+This delivery baseline is Windows-only and targets Windows PowerShell 5.1.
 
 1. `patch-github-copilot.ps1`
    The main XML patcher.
@@ -33,15 +35,15 @@ The solution is composed of five operational scripts and one local validation ha
 
 ## Chapter 2: Main Patcher
 
-### File Name
+### Chapter 2 File Name
 
 `patch-github-copilot.ps1`
 
-### Purpose
+### Chapter 2 Purpose
 
-This is the core engine. It discovers JetBrains profile directories, loads or creates the target GitHub Copilot XML file, enforces the required settings, writes a patch log beside the changed file, optionally creates backups, and can mark the resulting config as read-only.
+This is the core engine. It discovers JetBrains profile directories on Windows, loads or creates the target GitHub Copilot XML file, enforces the required settings, writes a patch log beside the changed file, optionally creates backups, and can mark the resulting config as read-only.
 
-### Script Contents
+### Chapter 2 Script Contents
 
 ```powershell
 [CmdletBinding(SupportsShouldProcess = $true)]
@@ -65,15 +67,11 @@ $script:ExitCodes = [ordered]@{
 }
 
 function Get-DefaultJetBrainsRoot {
-    if ($IsWindows) {
-        return Join-Path $env:APPDATA 'JetBrains'
+    if (-not $env:APPDATA) {
+        throw 'APPDATA environment variable is not set. This script expects a Windows user context and is intended for Windows PowerShell 5.1 customer deployments.'
     }
 
-    if ($IsMacOS) {
-        return Join-Path $HOME 'Library/Application Support/JetBrains'
-    }
-
-    return Join-Path $HOME '.config/JetBrains'
+    return Join-Path $env:APPDATA 'JetBrains'
 }
 
 if (-not $RootPath) {
@@ -481,7 +479,7 @@ if ($SkipIfJetBrainsRunning -and (Test-JetBrainsRunning)) {
     exit $script:ExitCodes.JetBrainsBusy
 }
 
-$candidatePaths = Get-CandidateConfigPaths -RootPath $RootPath -TargetFileName $TargetFileName -CreateIfMissing:$CreateIfMissing
+$candidatePaths = @(Get-CandidateConfigPaths -RootPath $RootPath -TargetFileName $TargetFileName -CreateIfMissing:$CreateIfMissing)
 
 foreach ($candidatePath in $candidatePaths) {
     try {
@@ -517,15 +515,15 @@ exit $exitCode
 
 ## Chapter 3: Compliance Checker
 
-### File Name
+### Chapter 3 File Name
 
 `test-github-copilot-compliance.ps1`
 
-### Purpose
+### Chapter 3 Purpose
 
-This script evaluates each discovered target file and returns a compliant or non-compliant result. It is the authoritative checker used by both the direct deployment flow and the Intune detection wrapper.
+This script evaluates each discovered target file and returns a compliant or non-compliant result. It is the authoritative checker used by both the direct deployment flow and the Intune detection wrapper in Windows PowerShell 5.1 environments.
 
-### Script Contents
+### Chapter 3 Script Contents
 
 ```powershell
 [CmdletBinding()]
@@ -538,15 +536,11 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 function Get-DefaultJetBrainsRoot {
-    if ($IsWindows) {
-        return Join-Path $env:APPDATA 'JetBrains'
+    if (-not $env:APPDATA) {
+        throw 'APPDATA environment variable is not set. This script expects a Windows user context and is intended for Windows PowerShell 5.1 customer deployments.'
     }
 
-    if ($IsMacOS) {
-        return Join-Path $HOME 'Library/Application Support/JetBrains'
-    }
-
-    return Join-Path $HOME '.config/JetBrains'
+    return Join-Path $env:APPDATA 'JetBrains'
 }
 
 if (-not $RootPath) {
@@ -665,7 +659,7 @@ function Test-ConfigCompliance {
 }
 
 $results = New-Object System.Collections.Generic.List[object]
-$candidatePaths = Get-ExpectedConfigPaths -RootPath $RootPath -TargetFileName $TargetFileName
+$candidatePaths = @(Get-ExpectedConfigPaths -RootPath $RootPath -TargetFileName $TargetFileName)
 
 foreach ($candidatePath in $candidatePaths) {
     $results.Add((Test-ConfigCompliance -Path $candidatePath))
@@ -691,15 +685,15 @@ exit $exitCode
 
 ## Chapter 4: Intune Detection Wrapper
 
-### File Name
+### Chapter 4 File Name
 
 `intune-detect-github-copilot.ps1`
 
-### Purpose
+### Chapter 4 Purpose
 
 This is the small wrapper intended for the Intune detection slot. It delegates to the compliance checker and preserves the same exit code behavior.
 
-### Script Contents
+### Chapter 4 Script Contents
 
 ```powershell
 [CmdletBinding()]
@@ -732,15 +726,15 @@ exit $LASTEXITCODE
 
 ## Chapter 5: Intune Remediation Wrapper
 
-### File Name
+### Chapter 5 File Name
 
 `intune-remediate-github-copilot.ps1`
 
-### Purpose
+### Chapter 5 Purpose
 
 This is the remediation wrapper intended for the Intune remediation slot. It checks compliance first, skips unnecessary patching when already compliant, invokes the main patcher only when needed, and then re-checks compliance before returning a final result.
 
-### Script Contents
+### Chapter 5 Script Contents
 
 ```powershell
 [CmdletBinding()]
@@ -825,26 +819,30 @@ exit 1
 
 ## Chapter 6: Packaging Helper
 
-### File Name
+### Chapter 6 File Name
 
 `package-intune-content.ps1`
 
-### Purpose
+### Chapter 6 Purpose
 
-This helper stages the four deployment scripts into a clean Intune content folder and writes a manifest. It is meant for internal packaging and operational handoff, not for endpoint execution.
+This helper stages the four deployment scripts into a clean Intune content folder, can optionally copy the README/license/disclaimer, and writes a manifest. It is meant for internal packaging and operational handoff, not for endpoint execution.
 
-### Script Contents
+### Chapter 6 Script Contents
 
 ```powershell
 [CmdletBinding()]
 param(
-    [string]$OutputPath = (Join-Path $PSScriptRoot 'dist\intune-content'),
+    [string]$OutputPath,
     [switch]$Clean,
     [switch]$IncludeReadme
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if (-not $OutputPath) {
+    $OutputPath = Join-Path $PSScriptRoot 'dist\intune-content'
+}
 
 $filesToStage = @(
     'patch-github-copilot.ps1',
@@ -873,9 +871,17 @@ foreach ($fileName in $filesToStage) {
 }
 
 if ($IncludeReadme) {
-    $readmeSource = Join-Path $PSScriptRoot 'README.md'
-    if (Test-Path -LiteralPath $readmeSource -PathType Leaf) {
-        Copy-Item -LiteralPath $readmeSource -Destination (Join-Path $OutputPath 'README.md') -Force
+    $documentationFiles = @(
+        'README.md',
+        'LICENSE',
+        'disclaimer.md'
+    )
+
+    foreach ($documentationFile in $documentationFiles) {
+        $documentationSource = Join-Path $PSScriptRoot $documentationFile
+        if (Test-Path -LiteralPath $documentationSource -PathType Leaf) {
+            Copy-Item -LiteralPath $documentationSource -Destination (Join-Path $OutputPath $documentationFile) -Force
+        }
     }
 }
 
@@ -892,6 +898,8 @@ foreach ($fileName in $filesToStage) {
 
 if ($IncludeReadme) {
     $manifestLines += '- README.md'
+    $manifestLines += '- LICENSE'
+    $manifestLines += '- disclaimer.md'
 }
 
 Set-Content -LiteralPath $manifestPath -Value $manifestLines
@@ -906,26 +914,47 @@ Set-Content -LiteralPath $manifestPath -Value $manifestLines
 
 ## Chapter 7: Local Validation Harness
 
-### File Name
+### Chapter 7 File Name
 
 `invoke-local-test-harness.ps1`
 
-### Purpose
+### Chapter 7 Purpose
 
-This is the internal validation harness used to prove the patcher and compliance flow against isolated local test data. It covers missing files, partial settings, malformed XML, backup creation, read-only enforcement, and compliance return codes.
+This is the internal validation harness used to prove the patcher and compliance flow against isolated local test data. It covers missing files, partial settings, malformed XML, backup creation, read-only enforcement, and compliance return codes while explicitly invoking Windows PowerShell 5.1.
 
-### Script Contents
+### Chapter 7 Script Contents
 
 ```powershell
 [CmdletBinding()]
 param(
-    [string]$PatcherPath = (Join-Path $PSScriptRoot 'patch-github-copilot.ps1'),
-    [string]$CompliancePath = (Join-Path $PSScriptRoot 'test-github-copilot-compliance.ps1'),
-    [string]$HarnessRoot = (Join-Path $PSScriptRoot 'local-test\harness')
+    [string]$PatcherPath,
+    [string]$CompliancePath,
+    [string]$HarnessRoot
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if (-not $PatcherPath) {
+    $PatcherPath = Join-Path $PSScriptRoot 'patch-github-copilot.ps1'
+}
+
+if (-not $CompliancePath) {
+    $CompliancePath = Join-Path $PSScriptRoot 'test-github-copilot-compliance.ps1'
+}
+
+if (-not $HarnessRoot) {
+    $HarnessRoot = Join-Path $PSScriptRoot 'local-test\harness'
+}
+
+function Get-WindowsPowerShellPath {
+    $candidatePath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    if (Test-Path -LiteralPath $candidatePath -PathType Leaf) {
+        return $candidatePath
+    }
+
+    throw 'Windows PowerShell 5.1 executable not found at the standard system path.'
+}
 
 function Assert-Condition {
     param(
@@ -993,7 +1022,9 @@ Set-Content -LiteralPath $backupFile -Value @'
 
 Set-Content -LiteralPath $malformedFile -Value '<application><component name="github-copilot"></application>'
 
-$patcherOutput = & pwsh -NoProfile -File $PatcherPath -RootPath $HarnessRoot -TargetFileName 'github2.copilot.xml' -CreateIfMissing -Backup -SetReadOnly 2>&1 | Out-String
+$windowsPowerShellPath = Get-WindowsPowerShellPath
+
+$patcherOutput = & $windowsPowerShellPath -NoProfile -ExecutionPolicy Bypass -File $PatcherPath -RootPath $HarnessRoot -TargetFileName 'github2.copilot.xml' -CreateIfMissing -Backup -SetReadOnly 2>&1 | Out-String
 $patcherExitCode = $LASTEXITCODE
 
 $createdFile = Join-Path $HarnessRoot 'PyCharm2025.1\options\github2.copilot.xml'
@@ -1018,11 +1049,12 @@ Assert-Condition (-not (Test-Path -LiteralPath (Join-Path $HarnessRoot 'Rider202
 $backupMatches = @(Get-ChildItem -LiteralPath (Split-Path -Parent $backupFile) -Filter 'github2.copilot.xml.*.bak')
 Assert-Condition ($backupMatches.Count -ge 1) 'Backup file was not created for the backup test case.'
 
-$complianceOutput = & pwsh -NoProfile -File $CompliancePath -RootPath $HarnessRoot -TargetFileName 'github2.copilot.xml' 2>&1 | Out-String
+$complianceOutput = & $windowsPowerShellPath -NoProfile -ExecutionPolicy Bypass -File $CompliancePath -RootPath $HarnessRoot -TargetFileName 'github2.copilot.xml' 2>&1 | Out-String
 $complianceExitCode = $LASTEXITCODE
 Assert-Condition ($complianceExitCode -eq 1) 'Compliance script should report non-compliance because the malformed file remains.'
 
 [pscustomobject]@{
+    PowerShellHost      = $windowsPowerShellPath
     HarnessRoot        = $HarnessRoot
     PatcherExitCode    = $patcherExitCode
     ComplianceExitCode = $complianceExitCode
@@ -1064,10 +1096,10 @@ Create these files in the same working folder and use these exact file names:
 
 Run these commands from the folder that contains the recreated files.
 
-1. Validate the local harness:
+#### Validate The Local Harness
 
 ```powershell
-pwsh -File .\invoke-local-test-harness.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\invoke-local-test-harness.ps1
 ```
 
 Expected result:
@@ -1077,10 +1109,10 @@ Expected result:
 3. The harness reports a nonzero patcher exit because the malformed XML test case is intentionally preserved.
 4. The harness completes without throwing an assertion failure.
 
-2. Stage the Intune deployment content:
+#### Stage The Intune Deployment Content
 
 ```powershell
-pwsh -File .\package-intune-content.ps1 -Clean -IncludeReadme
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\package-intune-content.ps1 -Clean -IncludeReadme
 ```
 
 Expected result:
@@ -1088,13 +1120,14 @@ Expected result:
 1. A `dist\intune-content` folder is created.
 2. The four deployment scripts are copied into that folder.
 3. A `package-manifest.txt` file is created.
+4. If `-IncludeReadme` is used, `README.md`, `LICENSE`, and `disclaimer.md` are copied into the staged folder.
 
-3. Validate Intune detection/remediation flow against a safe local target:
+#### Validate Intune Detection And Remediation Flow
 
 ```powershell
-pwsh -File .\intune-detect-github-copilot.ps1 -RootPath .\local-test\intune -TargetFileName github2.copilot.xml
-pwsh -File .\intune-remediate-github-copilot.ps1 -RootPath .\local-test\intune -TargetFileName github2.copilot.xml -CreateIfMissing -Backup -SetReadOnly
-pwsh -File .\intune-detect-github-copilot.ps1 -RootPath .\local-test\intune -TargetFileName github2.copilot.xml
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\intune-detect-github-copilot.ps1 -RootPath .\local-test\intune -TargetFileName github2.copilot.xml
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\intune-remediate-github-copilot.ps1 -RootPath .\local-test\intune -TargetFileName github2.copilot.xml -CreateIfMissing -Backup -SetReadOnly
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\intune-detect-github-copilot.ps1 -RootPath .\local-test\intune -TargetFileName github2.copilot.xml
 ```
 
 Expected result:
@@ -1112,6 +1145,7 @@ Before customer rollout, confirm these items:
 3. The packaging script produced the Intune content folder.
 4. The remediation wrapper was tested with `github2.copilot.xml` before switching to `github-copilot.xml`.
 5. Intune will run the scripts in user context, not system context.
+6. Customer execution is through Windows PowerShell 5.1 on Windows only.
 
 ## Chapter 10: Closing Notes
 

@@ -1,20 +1,21 @@
-Goal
+# Goal
 
-Build a safe, repeatable way to enforce GitHub Copilot settings across JetBrains IDEs, with two operating modes:
+Build a safe, repeatable way to enforce GitHub Copilot settings across JetBrains IDEs on Windows machines, with two operating modes:
 
 1. Local/manual execution for development and validation.
-2. Centralized deployment and enforcement through device management tools such as Intune on Windows and the macOS equivalent such as Intune shell scripts or Jamf.
+2. Centralized deployment and enforcement through device management tools such as Intune on Windows.
 
 The solution needs to locate JetBrains IDE config directories, update the GitHub Copilot config file in each matching profile, and do so in an idempotent way so repeated runs do not corrupt or duplicate XML.
 
 Target files
 
+```text
 Windows: %APPDATA%\Roaming\JetBrains\<product><version>\options\github-copilot.xml
-macOS: ~/Library/Application Support/JetBrains/<product><version>/options/github-copilot.xml
-Linux: ~/.config/JetBrains/<product><version>/options/github-copilot.xml
+```
 
 Desired XML content under the github-copilot component
 
+```xml
 <application>
   <component name="github-copilot">
     <option name="signinNotificationShown" value="true" />
@@ -26,6 +27,7 @@ Desired XML content under the github-copilot component
     </terminalAutoApprove>
   </component>
 </application>
+```
 
 Recommended approach
 
@@ -46,7 +48,7 @@ The script should:
 
 Implementation choice
 
-Use PowerShell 7 as the primary implementation because it can run on Windows and macOS, works well with Intune and enterprise management workflows, and has native XML handling. If needed later, a thin bash wrapper can invoke the same PowerShell script on macOS where PowerShell 7 is already deployed.
+Use Windows PowerShell 5.1 as the delivery baseline because that is what the customer has deployed and it aligns with Windows user-context Intune execution.
 
 Centralized configuration strategy
 
@@ -60,28 +62,14 @@ Recommended pattern:
 2. Remediation script calls the PowerShell patcher when files are missing or non-compliant.
 3. Run in user context, not system context, because the target files live in the signed-in user profile under %APPDATA%.
 4. Package the script with parameters locked to the production target file name github-copilot.xml.
-5. Log results to a predictable per-user location such as %LOCALAPPDATA%\Company\Logs.
+5. Write per-profile audit logs beside the patched XML file by default.
 
 Notes:
 
 1. If multiple users sign into the same machine, enforcement must occur per user.
 2. If JetBrains is open during remediation, either skip and retry later or patch then require restart of the IDE.
 3. Intune Settings Catalog is not the right tool here because this is not a native policy-backed setting; it is an app-owned XML file.
-
-macOS centralized management
-
-Best fit: Intune shell scripts or a macOS management platform such as Jamf Pro, Kandji, or Mosyle.
-
-Recommended pattern:
-
-1. Deploy PowerShell 7 to managed Macs if it is not already present.
-2. Run the same patch script in user context against ~/Library/Application Support/JetBrains.
-3. If running from Jamf, execute via a policy scoped to users or devices with logic that resolves the active user home directory.
-4. Use the same detection/remediation model as Windows.
-
-Important constraint:
-
-There is no native MDM policy channel for this specific JetBrains Copilot XML, so centralized control is effectively script-based enforcement, not a first-party settings policy.
+4. The delivered solution is Windows-only and assumes Windows PowerShell 5.1.
 
 Script design
 
@@ -98,7 +86,7 @@ Proposed behavior:
 
 1. Enumerate immediate JetBrains product/version directories under the root path.
 2. Build candidate paths ending in options\<TargetFileName>.
-3. If CreateIfMissing is enabled and options exists but the file does not, create a minimal <application /> document first.
+3. If CreateIfMissing is enabled and options exists but the file does not, create a minimal `application` document first.
 4. Load XML.
 5. Ensure /application exists.
 6. Ensure component[@name='github-copilot'] exists.
@@ -137,11 +125,9 @@ Suggested local commands
 
 Windows example:
 
-pwsh -File .\patch-github-copilot.ps1 -RootPath "$env:APPDATA\JetBrains" -TargetFileName github2.copilot.xml -CreateIfMissing -Backup -Verbose
-
-macOS example:
-
-pwsh -File ./patch-github-copilot.ps1 -RootPath "$HOME/Library/Application Support/JetBrains" -TargetFileName github2.copilot.xml -CreateIfMissing -Backup -Verbose
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\patch-github-copilot.ps1 -RootPath "$env:APPDATA\JetBrains" -TargetFileName github2.copilot.xml -CreateIfMissing -Backup -Verbose
+```
 
 Validation checklist
 
@@ -156,15 +142,13 @@ Build sequence
 
 1. Create patch-github-copilot.ps1 with the parameters and XML upsert behavior above.
 2. Test locally using github2.copilot.xml.
-3. Add a second detection script for Intune/Jamf compliance checks if needed.
+3. Add a second detection script for Intune compliance checks if needed.
 4. Package for centralized deployment.
 5. Pilot on a small user set before broad rollout.
 
 Deliverables
 
-1. Cross-platform PowerShell patch script.
+1. Windows PowerShell 5.1 patch script.
 2. Optional detection/compliance script.
-3. Deployment notes for Intune and macOS management.
+3. Deployment notes for Intune on Windows.
 4. Local test evidence showing safe use of github2.copilot.xml.
-
-

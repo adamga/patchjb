@@ -1,12 +1,16 @@
 [CmdletBinding()]
 param(
-    [string]$OutputPath = (Join-Path $PSScriptRoot 'dist\intune-content'),
+    [string]$OutputPath,
     [switch]$Clean,
     [switch]$IncludeReadme
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if (-not $OutputPath) {
+    $OutputPath = Join-Path $PSScriptRoot 'dist\intune-content'
+}
 
 $filesToStage = @(
     'patch-github-copilot.ps1',
@@ -35,9 +39,17 @@ foreach ($fileName in $filesToStage) {
 }
 
 if ($IncludeReadme) {
-    $readmeSource = Join-Path $PSScriptRoot 'README.md'
-    if (Test-Path -LiteralPath $readmeSource -PathType Leaf) {
-        Copy-Item -LiteralPath $readmeSource -Destination (Join-Path $OutputPath 'README.md') -Force
+    $documentationFiles = @(
+        'README.md',
+        'LICENSE',
+        'disclaimer.md'
+    )
+
+    foreach ($documentationFile in $documentationFiles) {
+        $documentationSource = Join-Path $PSScriptRoot $documentationFile
+        if (Test-Path -LiteralPath $documentationSource -PathType Leaf) {
+            Copy-Item -LiteralPath $documentationSource -Destination (Join-Path $OutputPath $documentationFile) -Force
+        }
     }
 }
 
@@ -54,6 +66,8 @@ foreach ($fileName in $filesToStage) {
 
 if ($IncludeReadme) {
     $manifestLines += '- README.md'
+    $manifestLines += '- LICENSE'
+    $manifestLines += '- disclaimer.md'
 }
 
 Set-Content -LiteralPath $manifestPath -Value $manifestLines

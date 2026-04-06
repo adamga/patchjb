@@ -19,15 +19,11 @@ $script:ExitCodes = [ordered]@{
 }
 
 function Get-DefaultJetBrainsRoot {
-    if ($IsWindows) {
-        return Join-Path $env:APPDATA 'JetBrains'
+    if (-not $env:APPDATA) {
+        throw 'APPDATA environment variable is not set. This script expects a Windows user context and is intended for Windows PowerShell 5.1 customer deployments.'
     }
 
-    if ($IsMacOS) {
-        return Join-Path $HOME 'Library/Application Support/JetBrains'
-    }
-
-    return Join-Path $HOME '.config/JetBrains'
+    return Join-Path $env:APPDATA 'JetBrains'
 }
 
 if (-not $RootPath) {
@@ -435,7 +431,7 @@ if ($SkipIfJetBrainsRunning -and (Test-JetBrainsRunning)) {
     exit $script:ExitCodes.JetBrainsBusy
 }
 
-$candidatePaths = Get-CandidateConfigPaths -RootPath $RootPath -TargetFileName $TargetFileName -CreateIfMissing:$CreateIfMissing
+$candidatePaths = @(Get-CandidateConfigPaths -RootPath $RootPath -TargetFileName $TargetFileName -CreateIfMissing:$CreateIfMissing)
 
 foreach ($candidatePath in $candidatePaths) {
     try {

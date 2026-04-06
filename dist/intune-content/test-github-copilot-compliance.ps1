@@ -8,15 +8,11 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 function Get-DefaultJetBrainsRoot {
-    if ($IsWindows) {
-        return Join-Path $env:APPDATA 'JetBrains'
+    if (-not $env:APPDATA) {
+        throw 'APPDATA environment variable is not set. This script expects a Windows user context and is intended for Windows PowerShell 5.1 customer deployments.'
     }
 
-    if ($IsMacOS) {
-        return Join-Path $HOME 'Library/Application Support/JetBrains'
-    }
-
-    return Join-Path $HOME '.config/JetBrains'
+    return Join-Path $env:APPDATA 'JetBrains'
 }
 
 if (-not $RootPath) {
@@ -135,7 +131,7 @@ function Test-ConfigCompliance {
 }
 
 $results = New-Object System.Collections.Generic.List[object]
-$candidatePaths = Get-ExpectedConfigPaths -RootPath $RootPath -TargetFileName $TargetFileName
+$candidatePaths = @(Get-ExpectedConfigPaths -RootPath $RootPath -TargetFileName $TargetFileName)
 
 foreach ($candidatePath in $candidatePaths) {
     $results.Add((Test-ConfigCompliance -Path $candidatePath))
